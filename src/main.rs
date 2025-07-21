@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::Utc;
 use clap::Parser;
 use error::SmartnessError;
 use tokio::time::sleep;
@@ -39,12 +40,34 @@ fn main() -> Result<(), SmartnessError> {
         .build()
         .map_err(SmartnessError::ProcessRuntimeBuildError)?;
 
+    // Metrics runtime
+    let metrics_runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .thread_name("cassandra-metrics-pool")
+        .enable_all()
+        .build()
+        .map_err(SmartnessError::MetricsRuntimeBuildError)?;
+
+    metrics_runtime.spawn(async move {
+        let mut count = 0;
+        loop {
+            println!(
+                "Writing metrics on csv file {} - Timestamp: {}",
+                count,
+                Utc::now().timestamp()
+            );
+            count += 1;
+
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
+
     process_runtime.block_on(async {
         let tracker = TaskTracker::new();
 
-        for i in 0..100 {
+        for i in 0..60 {
             tracker.spawn(async move {
-                sleep(Duration::from_secs(1)).await;
+                sleep(Duration::from_secs(1 * i)).await;
                 println!("Task {} shutting down", i);
             });
         }

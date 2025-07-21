@@ -5,6 +5,8 @@ use thiserror::Error;
 pub enum SmartnessError {
     #[error("failed to create process runtime with Tokio")]
     ProcessRuntimeBuildError(#[source] std::io::Error),
+    #[error("failed to create metrics runtime with Tokio")]
+    MetricsRuntimeBuildError(#[source] std::io::Error),
 }
 
 impl Debug for SmartnessError {

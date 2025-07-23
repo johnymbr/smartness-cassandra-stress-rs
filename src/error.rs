@@ -7,6 +7,18 @@ pub enum SmartnessError {
     ProcessRuntimeBuildError(#[source] std::io::Error),
     #[error("failed to create metrics runtime with Tokio")]
     MetricsRuntimeBuildError(#[source] std::io::Error),
+    #[error("failed to open dataset file")]
+    DatasetFileOpenError(#[source] std::io::Error),
+    #[error("dataset file does not exist")]
+    DatasetFileDoesNotExist,
+    #[error("workload file does not exist")]
+    WorkloadFileDoesNotExist,
+    #[error("failed to open workload file")]
+    WorkloadFileOpenError(#[source] std::io::Error),
+    #[error("failed to deserialize workload file")]
+    WorkloadFileDeserializationError(#[source] serde_json::Error),
+    #[error("it is required set cycles or running_time")]
+    CyclesOrRunningTimeRequired,
 }
 
 impl Debug for SmartnessError {

@@ -1,82 +1,47 @@
-use std::time::Duration;
+use std::{fs::File, path::Path, time::Duration};
 
-use chrono::Utc;
 use clap::Parser;
+use csv::StringRecord;
 use error::SmartnessError;
 use tokio::time::sleep;
 use tokio_util::task::TaskTracker;
 
+use crate::config::{
+    metrics_runtime,
+    process_runtime::{self, ProcessRuntime},
+    smarteness_config::SmartnessConfig,
+};
+
+mod config;
 mod error;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(short = 'w', long)]
-    workers: Option<usize>,
-
-    #[arg(long)]
-    csv_path: String,
-
-    #[arg(long)]
-    metrics_dir: String,
+    workload: String,
 }
 
 fn main() -> Result<(), SmartnessError> {
     let args = Args::parse();
 
-    println!("Worker {:?}", args.workers);
-    println!("Csv Path {}", args.csv_path);
-    println!("Metrics DIR {}", args.metrics_dir);
+    println!("Workload Path {:?}", args.workload);
 
-    // TODO: create a Tokio runtime with number of workers equal args.workers...
-    let mut process_runtime = tokio::runtime::Builder::new_multi_thread();
-    if let Some(workers) = args.workers {
-        process_runtime.worker_threads(workers);
+    let smartness_config = SmartnessConfig::new(args.workload)?;
+
+    // we will check if dataset file exists...
+    let dataset_path = Path::new(&smartness_config.dataset_path);
+    if !dataset_path.exists() {
+        return Err(SmartnessError::DatasetFileDoesNotExist);
     }
 
-    let process_runtime = process_runtime
-        .thread_name("cassandra-reqs-pool")
-        .enable_all()
-        .build()
-        .map_err(SmartnessError::ProcessRuntimeBuildError)?;
+    let dataset_file = File::open(dataset_path).map_err(SmartnessError::DatasetFileOpenError)?;
 
     // Metrics runtime
-    let metrics_runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(1)
-        .thread_name("cassandra-metrics-pool")
-        .enable_all()
-        .build()
-        .map_err(SmartnessError::MetricsRuntimeBuildError)?;
+    let _metrics_runtime = metrics_runtime::create_runtime()?;
 
-    metrics_runtime.spawn(async move {
-        let mut count = 0;
-        loop {
-            println!(
-                "Writing metrics on csv file {} - Timestamp: {}",
-                count,
-                Utc::now().timestamp()
-            );
-            count += 1;
-
-            sleep(Duration::from_secs(1)).await;
-        }
-    });
-
-    process_runtime.block_on(async {
-        let tracker = TaskTracker::new();
-
-        for i in 0..60 {
-            tracker.spawn(async move {
-                sleep(Duration::from_secs(1 * i)).await;
-                println!("Task {} shutting down", i);
-            });
-        }
-
-        tracker.close();
-        tracker.wait().await;
-
-        println!("This is printed after all of the tasks.");
-    });
+    // Process runtime
+    let _process_runtime = ProcessRuntime::new(&smartness_config, dataset_file)?;
 
     Ok(())
 }

@@ -1,15 +1,10 @@
-use std::{fs::File, path::Path, time::Duration};
+use std::{fs::File, path::Path};
 
 use clap::Parser;
-use csv::StringRecord;
 use error::SmartnessError;
-use tokio::time::sleep;
-use tokio_util::task::TaskTracker;
 
 use crate::config::{
-    metrics_runtime,
-    process_runtime::{self, ProcessRuntime},
-    smarteness_config::SmartnessConfig,
+    metrics_runtime, process_runtime::ProcessRuntime, smarteness_config::SmartnessConfig,
 };
 
 mod config;
@@ -38,10 +33,14 @@ fn main() -> Result<(), SmartnessError> {
     let dataset_file = File::open(dataset_path).map_err(SmartnessError::DatasetFileOpenError)?;
 
     // Metrics runtime
-    let _metrics_runtime = metrics_runtime::create_runtime()?;
+    let metrics_runtime = metrics_runtime::create_runtime(&smartness_config)?;
 
     // Process runtime
-    let _process_runtime = ProcessRuntime::new(&smartness_config, dataset_file)?;
+    let process_runtime = ProcessRuntime::new(&smartness_config, dataset_file)?;
+    process_runtime.config_runtime()?;
+
+    metrics_runtime.shutdown_background();
+    println!("Metrics Runtime stopped.");
 
     Ok(())
 }

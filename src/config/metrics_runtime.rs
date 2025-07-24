@@ -6,7 +6,7 @@ use tokio::{
 
 use crate::{config::smarteness_config::SmartnessConfig, error::SmartnessError};
 
-pub fn create_runtime() -> Result<Runtime, SmartnessError> {
+pub fn create_runtime(_smartness_settings: &SmartnessConfig) -> Result<Runtime, SmartnessError> {
     let metrics_runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
         .thread_name("cassandra-metrics-pool")

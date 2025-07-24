@@ -1,13 +1,14 @@
-use std::fs::File;
+use std::{fs::File, sync::Arc, time::Duration};
 
-use csv::StringRecord;
-use tokio::runtime::Runtime;
+use csv::{Reader, StringRecord};
+use tokio::{runtime::Runtime, time::sleep};
+use tokio_util::task::TaskTracker;
 
 use crate::{config::smarteness_config::SmartnessConfig, error::SmartnessError};
 
 pub struct ProcessRuntime<'a> {
-    runtime: Runtime,
-    dataset_file: File,
+    runtime: Arc<Runtime>,
+    dataset_file: Arc<File>,
     smartness_config: &'a SmartnessConfig,
 }
 
@@ -30,20 +31,24 @@ impl<'a> ProcessRuntime<'a> {
         // here we will handle when we will use cycles or time to run our tests...
 
         Ok(Self {
-            runtime,
+            runtime: Arc::new(runtime),
             smartness_config,
-            dataset_file,
+            dataset_file: Arc::new(dataset_file),
         })
     }
 
-    pub fn config_runtime(&self) -> Result<(), SmartnessConfig> {
+    pub fn config_runtime(&self) -> Result<(), SmartnessError> {
+        let dataset_file = Arc::clone(&self.dataset_file);
+
         // running time has precendency over cycle...
         if let Some(running_time) = &self.smartness_config.running_time {
             println!("Running time: {}", running_time);
 
-            &self.runtime.spawn(async {
+            let runtime = Arc::clone(&self.runtime);
+
+            let main_task = runtime.spawn(async move {
                 let mut count = 0;
-                let mut rdr = csv::Reader::from_reader(&self.dataset_file);
+                let mut rdr = Reader::from_reader(dataset_file);
 
                 {
                     let empty_header = StringRecord::new();
@@ -73,26 +78,55 @@ impl<'a> ProcessRuntime<'a> {
                     }
                 }
             });
-        }
 
-        if let Some(cycles) = smartness_config.cycles {
-            process_runtime.block_on(async {
+            println!("Creating signal_runtime...");
+            let signal_runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .thread_name("cassandra-signal-pool")
+                .enable_all()
+                .build()
+                .map_err(SmartnessError::MetricsRuntimeBuildError)?;
+
+            let mut interrupt = Box::pin(tokio::signal::ctrl_c());
+            signal_runtime.block_on(async {
+                tokio::select! {
+                    _ = &mut interrupt => {
+                        println!("It was interrupted....");
+                    },
+                    _ = tokio::time::sleep(Duration::from_secs(*running_time as u64 * 60)) => {
+                        println!("We had a timeout....");
+                    }
+                }
+
+                main_task.abort();
+                println!("ProcessRuntime -> Production Task aborted...");
+                sleep(Duration::from_secs(2)).await;
+            });
+        } else if let Some(cycles) = &self.smartness_config.cycles {
+            let runtime = Arc::clone(&self.runtime);
+            runtime.block_on(async {
                 let tracker = TaskTracker::new();
 
                 let mut count = 0;
-                let mut rdr = csv::Reader::from_reader(dataset_file);
+                let mut rdr = Reader::from_reader(dataset_file);
 
                 {
                     let empty_header = StringRecord::new();
-                    let headers = rdr.headers().unwrap_or(&empty_header);
-                    println!("CSV Headers: {:?}", headers);
+                    let _headers = rdr.headers().unwrap_or(&empty_header);
+                    // println!("CSV Headers: {:?}", headers);
                 }
 
-                for result in rdr.records() {
-                    if count <= cycles {
-                        if let Ok(record) = result {
+                let mut iter = rdr.into_records();
+                let pos = iter.reader().position().clone();
+                loop {
+                    if count <= *cycles {
+                        break;
+                    }
+
+                    if let Some(record) = iter.next() {
+                        if let Ok(record) = record {
                             tracker.spawn(async move {
-                                if count % 100 == 0 {
+                                if count % 10000 == 0 {
                                     println!(
                                         "Cycle: {} - CSV Record: C0 = {:?}, C1 = {:?}",
                                         count, &record[0], &record[1]
@@ -102,44 +136,20 @@ impl<'a> ProcessRuntime<'a> {
                             count += 1;
                         }
                     } else {
-                        break;
+                        if iter.reader_mut().seek(pos.clone()).is_ok() {
+                            iter = iter.into_reader().into_records();
+                        }
                     }
                 }
 
                 tracker.close();
                 tracker.wait().await;
 
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(2)).await;
 
                 println!("This is printed after all of the tasks.");
             });
         }
-
-        println!("Creating signal_runtime...");
-        let signal_runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .thread_name("cassandra-signal-pool")
-            .enable_all()
-            .build()
-            .map_err(SmartnessError::MetricsRuntimeBuildError)?;
-
-        let mut interrupt = Box::pin(tokio::signal::ctrl_c());
-        signal_runtime.block_on(async {
-            tokio::select! {
-                _ = &mut interrupt => {
-                    println!("It was interrupted....");
-                },
-                _ = tokio::time::sleep(Duration::from_secs(smartness_config.running_time.unwrap() as u64 * 60)) => {
-                    println!("We had a timeout....");
-                }
-            }
-
-            println!("Shutdown process_runtime");
-            process_runtime.shutdown_background();
-            sleep(Duration::from_secs(2)).await;
-            println!("Shutdown metrics_runtime");
-            metrics_runtime.shutdown_background();
-        });
 
         Ok(())
     }

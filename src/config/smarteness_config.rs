@@ -22,6 +22,7 @@ pub struct SmartnessConfig {
     pub reads_rate: Option<f32>,
 }
 
+// TODO change this name to smartnesssettings
 impl SmartnessConfig {
     pub fn new(workload_path: String) -> Result<Self, SmartnessError> {
         let workload_path = Path::new(&workload_path);

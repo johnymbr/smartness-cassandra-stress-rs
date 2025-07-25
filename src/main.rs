@@ -1,13 +1,14 @@
-use std::{fs::File, path::Path};
+use std::{fs::File, path::Path, time::Duration};
 
 use clap::Parser;
 use error::SmartnessError;
 
 use crate::config::{
-    metrics_runtime, process_runtime::ProcessRuntime, smarteness_config::SmartnessConfig,
+    metrics_runtime, process_runtime::ProcessRuntime, smarteness_settings::SmartnessSettings,
 };
 
 mod config;
+mod csql;
 mod error;
 
 #[derive(Parser)]
@@ -22,10 +23,10 @@ fn main() -> Result<(), SmartnessError> {
 
     println!("Workload Path {:?}", args.workload);
 
-    let smartness_config = SmartnessConfig::new(args.workload)?;
+    let smartness_settings = SmartnessSettings::new(args.workload)?;
 
     // we will check if dataset file exists...
-    let dataset_path = Path::new(&smartness_config.dataset_path);
+    let dataset_path = Path::new(&smartness_settings.dataset_path);
     if !dataset_path.exists() {
         return Err(SmartnessError::DatasetFileDoesNotExist);
     }
@@ -33,13 +34,15 @@ fn main() -> Result<(), SmartnessError> {
     let dataset_file = File::open(dataset_path).map_err(SmartnessError::DatasetFileOpenError)?;
 
     // Metrics runtime
-    let metrics_runtime = metrics_runtime::create_runtime(&smartness_config)?;
+    let metrics_runtime = metrics_runtime::create_runtime(&smartness_settings)?;
 
     // Process runtime
-    let process_runtime = ProcessRuntime::new(&smartness_config, dataset_file)?;
+    let process_runtime = ProcessRuntime::new(&smartness_settings, dataset_file)?;
     process_runtime.config_runtime()?;
+    process_runtime.shutdown();
+    println!("Process Runtime stopped.");
 
-    metrics_runtime.shutdown_background();
+    metrics_runtime.shutdown_timeout(Duration::from_secs(2));
     println!("Metrics Runtime stopped.");
 
     Ok(())

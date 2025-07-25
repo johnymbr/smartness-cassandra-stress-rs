@@ -1,24 +1,27 @@
-use std::{fs::File, sync::Arc, time::Duration};
+use std::{fs::File, sync::Arc};
 
 use csv::{Reader, StringRecord};
-use tokio::{runtime::Runtime, time::sleep};
+use tokio::{
+    runtime::Runtime,
+    time::{Duration, interval, sleep},
+};
 use tokio_util::task::TaskTracker;
 
-use crate::{config::smarteness_config::SmartnessConfig, error::SmartnessError};
+use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessError};
 
 pub struct ProcessRuntime<'a> {
-    runtime: Arc<Runtime>,
-    dataset_file: Arc<File>,
-    smartness_config: &'a SmartnessConfig,
+    pub runtime: Arc<Runtime>,
+    pub dataset_file: Arc<File>,
+    pub smartness_settings: &'a SmartnessSettings,
 }
 
 impl<'a> ProcessRuntime<'a> {
     pub fn new(
-        smartness_config: &'a SmartnessConfig,
+        smartness_settings: &'a SmartnessSettings,
         dataset_file: File,
     ) -> Result<Self, SmartnessError> {
         let mut runtime = tokio::runtime::Builder::new_multi_thread();
-        if let Some(workers) = smartness_config.workers {
+        if let Some(workers) = smartness_settings.workers {
             runtime.worker_threads(workers);
         }
 
@@ -32,7 +35,7 @@ impl<'a> ProcessRuntime<'a> {
 
         Ok(Self {
             runtime: Arc::new(runtime),
-            smartness_config,
+            smartness_settings,
             dataset_file: Arc::new(dataset_file),
         })
     }
@@ -41,14 +44,20 @@ impl<'a> ProcessRuntime<'a> {
         let dataset_file = Arc::clone(&self.dataset_file);
 
         // running time has precendency over cycle...
-        if let Some(running_time) = &self.smartness_config.running_time {
+        if let Some(running_time) = &self.smartness_settings.running_time {
             println!("Running time: {}", running_time);
+
+            let reads_interval = self.smartness_settings.reads_interval.unwrap();
+            let task_interval = self.smartness_settings.task_interval.unwrap() as u64;
 
             let runtime = Arc::clone(&self.runtime);
 
             let main_task = runtime.spawn(async move {
-                let mut count = 0;
+                let mut count = 1;
                 let mut rdr = Reader::from_reader(dataset_file);
+                let mut task_interval = interval(Duration::from_millis(
+                    task_interval
+                ));
 
                 {
                     let empty_header = StringRecord::new();
@@ -58,17 +67,28 @@ impl<'a> ProcessRuntime<'a> {
 
                 let mut iter = rdr.into_records();
                 let pos = iter.reader().position().clone();
+
                 loop {
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
-                            tokio::spawn(async move {
-                                if count % 10000 == 0 {
+                            if count % reads_interval != 0 {
+                                tokio::spawn(async move {
+                                    if count % 10000 == 0 {
+                                        println!(
+                                            "Wryte Operation: {} - CSV Record: C0 = {:?}, C1 = {:?}",
+                                            count, &record[0], &record[1]
+                                        );
+                                    }
+                                });
+                            } else {
+                                tokio::spawn(async move {
                                     println!(
-                                        "Cycle: {} - CSV Record: C0 = {:?}, C1 = {:?}",
+                                        "Read Operation: {} - CSV Record: C0 = {:?}, C1 = {:?}",
                                         count, &record[0], &record[1]
                                     );
-                                }
-                            });
+                                });
+                            }
+
                             count += 1;
                         }
                     } else {
@@ -76,6 +96,8 @@ impl<'a> ProcessRuntime<'a> {
                             iter = iter.into_reader().into_records();
                         }
                     }
+
+                    task_interval.tick().await;
                 }
             });
 
@@ -99,10 +121,10 @@ impl<'a> ProcessRuntime<'a> {
                 }
 
                 main_task.abort();
-                println!("ProcessRuntime -> Production Task aborted...");
+                println!("ProcessRuntime main task aborted...");
                 sleep(Duration::from_secs(2)).await;
             });
-        } else if let Some(cycles) = &self.smartness_config.cycles {
+        } else if let Some(cycles) = &self.smartness_settings.cycles {
             let runtime = Arc::clone(&self.runtime);
             runtime.block_on(async {
                 let tracker = TaskTracker::new();
@@ -152,5 +174,14 @@ impl<'a> ProcessRuntime<'a> {
         }
 
         Ok(())
+    }
+
+    pub fn shutdown(self) {
+        if let Ok(runtime) = Arc::try_unwrap(self.runtime) {
+            println!("Shutting down ProcessRuntime...");
+            runtime.shutdown_background();
+        } else {
+            println!("Error when try to shutting down ProcessRuntime...");
+        }
     }
 }

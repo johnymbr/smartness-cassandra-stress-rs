@@ -19,6 +19,16 @@ pub enum SmartnessError {
     WorkloadFileDeserializationError(#[source] serde_json::Error),
     #[error("it is required set cycles or running_time")]
     CyclesOrRunningTimeRequired,
+    #[error("it is required set write_script")]
+    WriteScriptRequired,
+    #[error("it is required set read_script")]
+    ReadScriptRequired,
+    #[error(
+        "it is required set startup_create_schema_script and startup_drop_table_script and startup_create_table_script"
+    )]
+    StartuptScriptsRequired,
+    #[error("it is required set warmup_qty_ops")]
+    WarmupQtyOpsRequired,
 }
 
 impl Debug for SmartnessError {

@@ -26,6 +26,14 @@ pub struct SmartnessSettings {
     pub task_interval: Option<i64>,
     /// quantity of columns that we will use, if -1 all columns will be used.
     pub cols_qty: Option<i64>,
+    /// host to connect to cassandra
+    pub cassandra_host: Option<String>,
+    /// port to connect to cassandra
+    pub cassandra_port: Option<i32>,
+    /// username to connect to cassandra
+    pub cassandra_username: Option<String>,
+    /// password to connect to cassandra
+    pub cassandra_password: Option<String>,
     /// script to use in write tasks
     pub write_script: Option<String>,
     /// script to use in read tasks
@@ -64,6 +72,20 @@ impl SmartnessSettings {
             return Err(SmartnessError::CyclesOrRunningTimeRequired);
         }
 
+        if smartness_config.cassandra_host.is_none() {
+            return Err(SmartnessError::CassandraHostRequired);
+        }
+
+        if smartness_config.cassandra_port.is_none() {
+            return Err(SmartnessError::CassandraPortRequired);
+        }
+
+        if smartness_config.cassandra_username.is_none()
+            || smartness_config.cassandra_password.is_none()
+        {
+            return Err(SmartnessError::CassandraUsernameAndPasswordAreRequired);
+        }
+
         if smartness_config.tasks_per_sec.is_none() {
             smartness_config.tasks_per_sec = Some(100);
         }
@@ -78,11 +100,15 @@ impl SmartnessSettings {
 
         let writes_ops = smartness_config.tasks_per_sec.unwrap() as f32 - reads_ops;
 
-        let reads_interval = (writes_ops / reads_ops).floor();
+        let reads_interval = if reads_ops != 0.0 {
+            (writes_ops / reads_ops).floor()
+        } else {
+            reads_ops
+        };
 
         smartness_config.reads_interval = Some(reads_interval as i64);
         smartness_config.task_interval =
-            Some((1000.0 / smartness_config.tasks_per_sec.unwrap() as f32).floor() as i64);
+            Some((1_000_000_000.0 / smartness_config.tasks_per_sec.unwrap() as f32).floor() as i64);
 
         if smartness_config.cols_qty.is_none() {
             smartness_config.cols_qty = Some(-1);
@@ -112,7 +138,7 @@ impl SmartnessSettings {
             return Err(SmartnessError::WarmupQtyOpsRequired);
         }
 
-        println!("Config: {:?}", smartness_config);
+        // println!("Config: {:?}", smartness_config);
 
         Ok(smartness_config)
     }

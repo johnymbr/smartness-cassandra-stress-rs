@@ -1,18 +1,24 @@
 use std::{fs::File, sync::Arc};
 
 use csv::{Reader, StringRecord};
+use scylla::client::session::Session;
 use tokio::{
     runtime::Runtime,
     time::{Duration, interval, sleep},
 };
 use tokio_util::task::TaskTracker;
 
-use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessError};
+use crate::{
+    config::smarteness_settings::SmartnessSettings,
+    csql::csql_op::{self},
+    error::SmartnessError,
+};
 
 pub struct ProcessRuntime<'a> {
     pub runtime: Arc<Runtime>,
     pub dataset_file: Arc<File>,
     pub smartness_settings: &'a SmartnessSettings,
+    pub session: Arc<Session>,
 }
 
 impl<'a> ProcessRuntime<'a> {
@@ -31,33 +37,67 @@ impl<'a> ProcessRuntime<'a> {
             .build()
             .map_err(SmartnessError::ProcessRuntimeBuildError)?;
 
-        // here we will handle when we will use cycles or time to run our tests...
+        let session = runtime.block_on(csql_op::create_session(smartness_settings))?;
 
         Ok(Self {
             runtime: Arc::new(runtime),
             smartness_settings,
             dataset_file: Arc::new(dataset_file),
+            session: Arc::new(session),
         })
     }
 
-    pub fn config_runtime(&self) -> Result<(), SmartnessError> {
+    pub fn handle_startup(&self) -> Result<(), SmartnessError> {
+        // handle asynchronously startup_op...
+        self.runtime.block_on(csql_op::startup_op(
+            &self.smartness_settings,
+            self.session.clone(),
+        ))?;
+
+        Ok(())
+    }
+
+    pub fn handle_warmup(&self) -> Result<(), SmartnessError> {
+        self.runtime.block_on(csql_op::warmup_op(
+            &self.smartness_settings,
+            self.session.clone(),
+            self.dataset_file.clone(),
+        ))?;
+        Ok(())
+    }
+
+    pub fn start_runtime(&self) -> Result<(), SmartnessError> {
         let dataset_file = Arc::clone(&self.dataset_file);
+
+        let reads_interval = self.smartness_settings.reads_interval.unwrap();
+        let task_interval = self.smartness_settings.task_interval.unwrap() as u64;
 
         // running time has precendency over cycle...
         if let Some(running_time) = &self.smartness_settings.running_time {
             println!("Running time: {}", running_time);
 
-            let reads_interval = self.smartness_settings.reads_interval.unwrap();
-            let task_interval = self.smartness_settings.task_interval.unwrap() as u64;
+            let write_op = Arc::new(
+                self.smartness_settings
+                    .read_script
+                    .as_ref()
+                    .unwrap()
+                    .clone(),
+            );
+            let read_op = Arc::new(
+                self.smartness_settings
+                    .read_script
+                    .as_ref()
+                    .unwrap()
+                    .clone(),
+            );
 
             let runtime = Arc::clone(&self.runtime);
+            let session = Arc::clone(&self.session);
 
             let main_task = runtime.spawn(async move {
                 let mut count = 1;
                 let mut rdr = Reader::from_reader(dataset_file);
-                let mut task_interval = interval(Duration::from_millis(
-                    task_interval
-                ));
+                let mut task_interval = interval(Duration::from_nanos(task_interval));
 
                 {
                     let empty_header = StringRecord::new();
@@ -69,23 +109,31 @@ impl<'a> ProcessRuntime<'a> {
                 let pos = iter.reader().position().clone();
 
                 loop {
+                    let write_op_aux = write_op.clone();
+                    let read_op_aux = read_op.clone();
+                    let session = session.clone();
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
-                            if count % reads_interval != 0 {
+                            if reads_interval > -1 && count % reads_interval != 0 {
                                 tokio::spawn(async move {
                                     if count % 10000 == 0 {
-                                        println!(
-                                            "Wryte Operation: {} - CSV Record: C0 = {:?}, C1 = {:?}",
-                                            count, &record[0], &record[1]
-                                        );
+                                        if let Err(err) = csql_op::write_op(
+                                            session,
+                                            &write_op_aux,
+                                            record.iter().collect::<Vec<&str>>(),
+                                        )
+                                        .await
+                                        {
+                                            println!("Error: {:?}", err);
+                                        }
                                     }
                                 });
                             } else {
                                 tokio::spawn(async move {
-                                    println!(
-                                        "Read Operation: {} - CSV Record: C0 = {:?}, C1 = {:?}",
-                                        count, &record[0], &record[1]
-                                    );
+                                    if let Err(err) = csql_op::read_op(session, &read_op_aux).await
+                                    {
+                                        println!("Error: {:?}", err);
+                                    }
                                 });
                             }
 
@@ -141,19 +189,19 @@ impl<'a> ProcessRuntime<'a> {
                 let mut iter = rdr.into_records();
                 let pos = iter.reader().position().clone();
                 loop {
-                    if count <= *cycles {
+                    if count > *cycles {
                         break;
                     }
+
+                    let mut task_interval = interval(Duration::from_nanos(task_interval));
 
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
                             tracker.spawn(async move {
-                                if count % 10000 == 0 {
-                                    println!(
-                                        "Cycle: {} - CSV Record: C0 = {:?}, C1 = {:?}",
-                                        count, &record[0], &record[1]
-                                    );
-                                }
+                                println!(
+                                    "Cycle: {} - CSV Record: C0 = {:?}, C1 = {:?}",
+                                    count, &record[0], &record[1]
+                                );
                             });
                             count += 1;
                         }
@@ -162,14 +210,14 @@ impl<'a> ProcessRuntime<'a> {
                             iter = iter.into_reader().into_records();
                         }
                     }
+
+                    task_interval.tick().await;
                 }
 
                 tracker.close();
                 tracker.wait().await;
 
                 sleep(Duration::from_secs(2)).await;
-
-                println!("This is printed after all of the tasks.");
             });
         }
 

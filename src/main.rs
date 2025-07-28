@@ -25,6 +25,8 @@ fn main() -> Result<(), SmartnessError> {
 
     let smartness_settings = SmartnessSettings::new(args.workload)?;
 
+    println!("Settings loaded.");
+
     // we will check if dataset file exists...
     let dataset_path = Path::new(&smartness_settings.dataset_path);
     if !dataset_path.exists() {
@@ -33,12 +35,16 @@ fn main() -> Result<(), SmartnessError> {
 
     let dataset_file = File::open(dataset_path).map_err(SmartnessError::DatasetFileOpenError)?;
 
-    // Metrics runtime
-    let metrics_runtime = metrics_runtime::create_runtime(&smartness_settings)?;
-
     // Process runtime
     let process_runtime = ProcessRuntime::new(&smartness_settings, dataset_file)?;
-    process_runtime.config_runtime()?;
+    process_runtime.handle_startup()?;
+    process_runtime.handle_warmup()?;
+
+    // Metrics runtime
+    let metrics_runtime =
+        metrics_runtime::create_runtime(&smartness_settings, process_runtime.session.clone())?;
+
+    process_runtime.start_runtime()?;
     process_runtime.shutdown();
     println!("Process Runtime stopped.");
 

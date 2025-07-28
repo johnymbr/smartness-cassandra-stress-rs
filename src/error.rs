@@ -1,3 +1,4 @@
+use scylla::errors::{ExecutionError, NewSessionError};
 use std::{error::Error, fmt::Debug};
 use thiserror::Error;
 
@@ -29,6 +30,26 @@ pub enum SmartnessError {
     StartuptScriptsRequired,
     #[error("it is required set warmup_qty_ops")]
     WarmupQtyOpsRequired,
+    #[error("it is required set cassandra_host")]
+    CassandraHostRequired,
+    #[error("it is required set cassandra_port")]
+    CassandraPortRequired,
+    #[error("it is required set cassandra_username and cassandra_password")]
+    CassandraUsernameAndPasswordAreRequired,
+    #[error("error when create a ScyllaDB session")]
+    ScyllaSessionError(#[source] NewSessionError),
+    #[error("error when run create keyspace script")]
+    CsqlCreateKeyspaceError(#[source] ExecutionError),
+    #[error("error when run drop table script")]
+    CsqlDropTableError(#[source] ExecutionError),
+    #[error("error when run create table script")]
+    CsqlCreateTableError(#[source] ExecutionError),
+    #[error("error when insert a record via warmup")]
+    WarmupInsertOpError(#[source] ExecutionError),
+    #[error("error when execute a write operation")]
+    CsqlWriteOpError(#[source] ExecutionError),
+    #[error("error when execute a read operation")]
+    CsqlReadOpError(#[source] ExecutionError),
 }
 
 impl Debug for SmartnessError {

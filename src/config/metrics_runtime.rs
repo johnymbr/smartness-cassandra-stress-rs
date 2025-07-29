@@ -17,7 +17,7 @@ pub fn create_runtime(
     smartness_settings: &SmartnessSettings,
     session: Arc<Session>,
 ) -> Result<Runtime, SmartnessError> {
-    let file_name = Utc::now().format("%Y%m%d_%H%M%S%.3f").to_string();
+    let file_name = Utc::now().format("%Y%m%d_%H%M%S%3f").to_string();
 
     println!("Metrics file: {}.csv", file_name);
 

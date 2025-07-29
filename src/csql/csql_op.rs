@@ -5,6 +5,7 @@ use scylla::{
     client::{session::Session, session_builder::SessionBuilder},
     value::CqlValue,
 };
+use tokio::time::sleep;
 use uuid::Uuid;
 
 use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessError};
@@ -14,6 +15,8 @@ use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessErro
 pub async fn create_session(
     smartness_settings: &SmartnessSettings,
 ) -> Result<Session, SmartnessError> {
+    println!("Create Session started.");
+
     let session = SessionBuilder::new()
         .known_node(format!(
             "{}:{}",
@@ -32,10 +35,12 @@ pub async fn create_session(
                 .unwrap()
                 .clone(),
         )
-        .connection_timeout(Duration::from_secs(3))
+        .connection_timeout(Duration::from_secs(60))
         .build()
         .await
         .map_err(SmartnessError::ScyllaSessionError)?;
+
+    println!("Create Session finished.");
 
     Ok(session)
 }
@@ -98,6 +103,10 @@ pub async fn startup_op(
         println!("Create table applied.");
         println!("Startup Operations finished.");
     }
+
+    println!("Waiting 30s to cluster apply schema creation...");
+
+    sleep(Duration::from_secs(30)).await;
     Ok(())
 }
 

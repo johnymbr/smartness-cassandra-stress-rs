@@ -73,9 +73,14 @@ impl<'a> ProcessRuntime<'a> {
         let reads_interval = self.smartness_settings.reads_interval.unwrap();
         let task_interval = self.smartness_settings.task_interval.unwrap() as u64;
 
+        println!(
+            "Reads Interval: {} | Task Interval (nanoseconds): {}",
+            reads_interval, task_interval
+        );
+
         let write_op = Arc::new(
             self.smartness_settings
-                .read_script
+                .write_script
                 .as_ref()
                 .unwrap()
                 .clone(),
@@ -180,6 +185,7 @@ impl<'a> ProcessRuntime<'a> {
 
             runtime.block_on(async {
                 let tracker = TaskTracker::new();
+                let mut task_interval = interval(Duration::from_nanos(task_interval));
 
                 let mut count = 0;
                 let mut rdr = Reader::from_reader(dataset_file);
@@ -198,8 +204,6 @@ impl<'a> ProcessRuntime<'a> {
                     if count > *cycles {
                         break;
                     }
-
-                    let mut task_interval = interval(Duration::from_nanos(task_interval));
 
                     let write_op_aux = write_op.clone();
                     let read_op_aux = read_op.clone();

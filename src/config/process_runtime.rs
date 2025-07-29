@@ -1,12 +1,13 @@
 use std::{fs::File, sync::Arc};
 
 use csv::{Reader, StringRecord};
-use scylla::client::session::Session;
+use scylla::{client::session::Session, value::CqlValue};
 use tokio::{
     runtime::Runtime,
     time::{Duration, interval, sleep},
 };
 use tokio_util::task::TaskTracker;
+use uuid::Uuid;
 
 use crate::{
     config::smarteness_settings::SmartnessSettings,
@@ -115,13 +116,17 @@ impl<'a> ProcessRuntime<'a> {
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
                             if reads_interval <= 0 || count % reads_interval != 0 {
+                                let uuid = Uuid::new_v4();
+
+                                let mut cql_values = Vec::<CqlValue>::new();
+                                cql_values.push(CqlValue::Uuid(uuid));
+                                for value in record.iter() {
+                                    cql_values.push(CqlValue::Text(value.to_owned()));
+                                }
+
                                 tokio::spawn(async move {
-                                    if let Err(err) = csql_op::write_op(
-                                        session,
-                                        &write_op_aux,
-                                        record.iter().collect::<Vec<&str>>(),
-                                    )
-                                    .await
+                                    if let Err(err) =
+                                        csql_op::write_op(session, &write_op_aux, cql_values).await
                                     {
                                         println!("Error: {:?}", err);
                                     }
@@ -202,13 +207,17 @@ impl<'a> ProcessRuntime<'a> {
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
                             if reads_interval <= 0 || count % reads_interval != 0 {
+                                let uuid = Uuid::new_v4();
+
+                                let mut cql_values = Vec::<CqlValue>::new();
+                                cql_values.push(CqlValue::Uuid(uuid));
+                                for value in record.iter() {
+                                    cql_values.push(CqlValue::Text(value.to_owned()));
+                                }
+
                                 tokio::spawn(async move {
-                                    if let Err(err) = csql_op::write_op(
-                                        session,
-                                        &write_op_aux,
-                                        record.iter().collect::<Vec<&str>>(),
-                                    )
-                                    .await
+                                    if let Err(err) =
+                                        csql_op::write_op(session, &write_op_aux, cql_values).await
                                     {
                                         println!("Error: {:?}", err);
                                     }

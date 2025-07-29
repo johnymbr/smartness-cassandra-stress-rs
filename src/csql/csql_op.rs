@@ -158,7 +158,7 @@ pub async fn warmup_op(
 pub async fn write_op<'a>(
     session: Arc<Session>,
     insert: &'a str,
-    values: Vec<&str>,
+    values: Vec<CqlValue>,
 ) -> Result<(), SmartnessError> {
     // execute write operation
     session

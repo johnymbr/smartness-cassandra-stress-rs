@@ -38,7 +38,11 @@ fn main() -> Result<(), SmartnessError> {
     // Process runtime
     let process_runtime = ProcessRuntime::new(&smartness_settings, dataset_file)?;
     process_runtime.handle_startup()?;
-    process_runtime.handle_warmup()?;
+    {
+        let dataset_file_warmup =
+            File::open(dataset_path).map_err(SmartnessError::DatasetFileOpenError)?;
+        process_runtime.handle_warmup(dataset_file_warmup)?;
+    }
 
     // Metrics runtime
     let metrics_runtime =

@@ -1,7 +1,11 @@
 use std::{fs::File, sync::Arc, time::Duration};
 
 use csv::{Reader, StringRecord};
-use scylla::client::{session::Session, session_builder::SessionBuilder};
+use scylla::{
+    client::{session::Session, session_builder::SessionBuilder},
+    value::CqlValue,
+};
+use uuid::Uuid;
 
 use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessError};
 
@@ -102,7 +106,7 @@ pub async fn startup_op(
 pub async fn warmup_op(
     smartness_settings: &SmartnessSettings,
     session: Arc<Session>,
-    dataset_file: Arc<File>,
+    dataset_file: File,
 ) -> Result<(), SmartnessError> {
     if smartness_settings.warmup_enabled.is_some() && smartness_settings.warmup_enabled.unwrap() {
         println!("Warmup Operations started.");
@@ -120,14 +124,19 @@ pub async fn warmup_op(
         for _i in 0..smartness_settings.warmup_qty_ops.unwrap() {
             if let Some(record) = iter.next() {
                 if let Ok(record) = record {
-                    // call session
-                    let values = record.iter().collect::<Vec<&str>>();
+                    let uuid = Uuid::new_v4();
+
+                    let mut cql_values = Vec::<CqlValue>::new();
+                    cql_values.push(CqlValue::Uuid(uuid));
+                    for value in record.iter() {
+                        cql_values.push(CqlValue::Text(value.to_owned()));
+                    }
 
                     // create table
                     session
                         .query_unpaged(
                             smartness_settings.write_script.as_ref().unwrap().clone(),
-                            values,
+                            cql_values,
                         )
                         .await
                         .map(|_| ())
@@ -140,7 +149,7 @@ pub async fn warmup_op(
             }
         }
 
-        println!("Startup Operation finished.");
+        println!("Warmup Operation finished.");
     }
     Ok(())
 }

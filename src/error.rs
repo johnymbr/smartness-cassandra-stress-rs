@@ -8,6 +8,12 @@ pub enum SmartnessError {
     ProcessRuntimeBuildError(#[source] std::io::Error),
     #[error("failed to create metrics runtime with Tokio")]
     MetricsRuntimeBuildError(#[source] std::io::Error),
+    #[error("failed to create metrics parent path")]
+    MetricsParentPathCreateError(#[source] std::io::Error),
+    #[error("failed to create metrics file")]
+    MetricsFileCreateError(#[source] std::io::Error),
+    #[error("failed to write headers into metrics file")]
+    MetricsFileWriteHeadersError(#[source] csv::Error),
     #[error("failed to open dataset file")]
     DatasetFileOpenError(#[source] std::io::Error),
     #[error("dataset file does not exist")]

@@ -107,6 +107,17 @@ pub fn create_runtime(
                 metric_values.push(snapshot.percentile_98.to_string());
                 metric_values.push(snapshot.percentile_99.to_string());
                 metric_values.push(snapshot.percentile_99_9.to_string());
+            } else {
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
+                metric_values.push("-1".to_owned());
             }
 
             if let Err(error) = wtr.write_record(metric_values) {

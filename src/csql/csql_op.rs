@@ -3,6 +3,7 @@ use std::{fs::File, sync::Arc, time::Duration};
 use csv::{Reader, StringRecord};
 use scylla::{
     client::{session::Session, session_builder::SessionBuilder},
+    response::PagingState,
     value::CqlValue,
 };
 use tokio::time::sleep;
@@ -182,7 +183,7 @@ pub async fn write_op<'a>(
 pub async fn read_op(session: Arc<Session>, read: &str) -> Result<(), SmartnessError> {
     // execute read operation
     session
-        .query_unpaged(read, ())
+        .query_single_page(read, (), PagingState::start())
         .await
         .map(|_| ())
         .map_err(SmartnessError::CsqlReadOpError)?;

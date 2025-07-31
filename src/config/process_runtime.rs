@@ -120,6 +120,10 @@ impl<'a> ProcessRuntime<'a> {
                     let session = session.clone();
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
+                            if count % 10 == 0 {
+                                println!("Quantity operations: {}", count);
+                            }
+
                             if reads_interval <= 0 || count % reads_interval != 0 {
                                 let uuid = Uuid::new_v4();
 

@@ -19,7 +19,8 @@ pub struct ProcessRuntime<'a> {
     pub runtime: Arc<Runtime>,
     pub dataset_file: Arc<File>,
     pub smartness_settings: &'a SmartnessSettings,
-    pub session: Arc<Session>,
+    pub write_session: Arc<Session>,
+    pub read_session: Arc<Session>,
 }
 
 impl<'a> ProcessRuntime<'a> {
@@ -38,13 +39,15 @@ impl<'a> ProcessRuntime<'a> {
             .build()
             .map_err(SmartnessError::ProcessRuntimeBuildError)?;
 
-        let session = runtime.block_on(csql_op::create_session(smartness_settings))?;
+        let (write_session, read_session) =
+            runtime.block_on(csql_op::create_session(smartness_settings))?;
 
         Ok(Self {
             runtime: Arc::new(runtime),
             smartness_settings,
             dataset_file: Arc::new(dataset_file),
-            session: Arc::new(session),
+            write_session: Arc::new(write_session),
+            read_session: Arc::new(read_session),
         })
     }
 
@@ -52,7 +55,7 @@ impl<'a> ProcessRuntime<'a> {
         // handle asynchronously startup_op...
         self.runtime.block_on(csql_op::startup_op(
             &self.smartness_settings,
-            self.session.clone(),
+            self.write_session.clone(),
         ))?;
 
         Ok(())
@@ -61,7 +64,7 @@ impl<'a> ProcessRuntime<'a> {
     pub fn handle_warmup(&self, dataset_file: File) -> Result<(), SmartnessError> {
         self.runtime.block_on(csql_op::warmup_op(
             &self.smartness_settings,
-            self.session.clone(),
+            self.write_session.clone(),
             dataset_file,
         ))?;
         Ok(())
@@ -72,6 +75,7 @@ impl<'a> ProcessRuntime<'a> {
 
         let reads_interval = self.smartness_settings.reads_interval.unwrap();
         let task_interval = self.smartness_settings.task_interval.unwrap() as u64;
+        let cols_qty = self.smartness_settings.cols_qty.unwrap();
 
         println!(
             "Reads Interval: {} | Task Interval (nanoseconds): {}",
@@ -94,7 +98,8 @@ impl<'a> ProcessRuntime<'a> {
         );
 
         let runtime = Arc::clone(&self.runtime);
-        let session = Arc::clone(&self.session);
+        let write_session = Arc::clone(&self.write_session);
+        let read_session = Arc::clone(&self.read_session);
 
         // running time has precendency over cycle...
         if let Some(running_time) = &self.smartness_settings.running_time {
@@ -117,7 +122,8 @@ impl<'a> ProcessRuntime<'a> {
                 loop {
                     let write_op_aux = write_op.clone();
                     let read_op_aux = read_op.clone();
-                    let session = session.clone();
+                    let write_session = write_session.clone();
+                    let read_session = read_session.clone();
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
                             if count % 10 == 0 {
@@ -129,20 +135,29 @@ impl<'a> ProcessRuntime<'a> {
 
                                 let mut cql_values = Vec::<CqlValue>::new();
                                 cql_values.push(CqlValue::Uuid(uuid));
+
+                                let mut count_col = 0;
                                 for value in record.iter() {
+                                    if cols_qty != -1 && count_col >= cols_qty {
+                                        break;
+                                    }
+
                                     cql_values.push(CqlValue::Text(value.to_owned()));
+                                    count_col += 1;
                                 }
 
                                 tokio::spawn(async move {
                                     if let Err(err) =
-                                        csql_op::write_op(session, &write_op_aux, cql_values).await
+                                        csql_op::write_op(write_session, &write_op_aux, cql_values)
+                                            .await
                                     {
                                         println!("Error: {:?}", err);
                                     }
                                 });
                             } else {
                                 tokio::spawn(async move {
-                                    if let Err(err) = csql_op::read_op(session, &read_op_aux).await
+                                    if let Err(err) =
+                                        csql_op::read_op(read_session, &read_op_aux).await
                                     {
                                         println!("Error: {:?}", err);
                                     }
@@ -211,7 +226,8 @@ impl<'a> ProcessRuntime<'a> {
 
                     let write_op_aux = write_op.clone();
                     let read_op_aux = read_op.clone();
-                    let session = session.clone();
+                    let write_session = write_session.clone();
+                    let read_session = read_session.clone();
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
                             if reads_interval <= 0 || count % reads_interval != 0 {
@@ -219,20 +235,29 @@ impl<'a> ProcessRuntime<'a> {
 
                                 let mut cql_values = Vec::<CqlValue>::new();
                                 cql_values.push(CqlValue::Uuid(uuid));
+
+                                let mut count_col = 0;
                                 for value in record.iter() {
+                                    if cols_qty != -1 && count_col >= cols_qty {
+                                        break;
+                                    }
+
                                     cql_values.push(CqlValue::Text(value.to_owned()));
+                                    count_col += 1;
                                 }
 
                                 tokio::spawn(async move {
                                     if let Err(err) =
-                                        csql_op::write_op(session, &write_op_aux, cql_values).await
+                                        csql_op::write_op(write_session, &write_op_aux, cql_values)
+                                            .await
                                     {
                                         println!("Error: {:?}", err);
                                     }
                                 });
                             } else {
                                 tokio::spawn(async move {
-                                    if let Err(err) = csql_op::read_op(session, &read_op_aux).await
+                                    if let Err(err) =
+                                        csql_op::read_op(read_session, &read_op_aux).await
                                     {
                                         println!("Error: {:?}", err);
                                     }

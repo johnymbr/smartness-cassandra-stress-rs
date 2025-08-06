@@ -11,14 +11,14 @@ use uuid::Uuid;
 
 use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessError};
 
-// function that will create a new ScyllaDB session...
+// function that will create a ScyllaDB sessions for writers and readers...
 // this session will be used in other functions...
 pub async fn create_session(
     smartness_settings: &SmartnessSettings,
-) -> Result<Session, SmartnessError> {
-    println!("Create Session started.");
+) -> Result<(Session, Session), SmartnessError> {
+    println!("Create Write Session started.");
 
-    let session = SessionBuilder::new()
+    let write_session = SessionBuilder::new()
         .known_node(format!(
             "{}:{}",
             smartness_settings.cassandra_host.as_ref().unwrap().clone(),
@@ -41,9 +41,34 @@ pub async fn create_session(
         .await
         .map_err(SmartnessError::ScyllaSessionError)?;
 
-    println!("Create Session finished.");
+    println!("Create Read Session started.");
 
-    Ok(session)
+    let read_session = SessionBuilder::new()
+        .known_node(format!(
+            "{}:{}",
+            smartness_settings.cassandra_host.as_ref().unwrap().clone(),
+            smartness_settings.cassandra_port.unwrap()
+        ))
+        .user(
+            smartness_settings
+                .cassandra_username
+                .as_ref()
+                .unwrap()
+                .clone(),
+            smartness_settings
+                .cassandra_password
+                .as_ref()
+                .unwrap()
+                .clone(),
+        )
+        .connection_timeout(Duration::from_secs(60))
+        .build()
+        .await
+        .map_err(SmartnessError::ScyllaSessionError)?;
+
+    println!("Create Sessions finished.");
+
+    Ok((write_session, read_session))
 }
 
 // function that will apply script as startup step.
@@ -122,6 +147,7 @@ pub async fn warmup_op(
         println!("Warmup Operations started.");
 
         let mut rdr = Reader::from_reader(dataset_file);
+        let cols_qty = smartness_settings.cols_qty.unwrap();
 
         {
             let empty_header = StringRecord::new();
@@ -138,8 +164,16 @@ pub async fn warmup_op(
 
                     let mut cql_values = Vec::<CqlValue>::new();
                     cql_values.push(CqlValue::Uuid(uuid));
+
+                    let mut count_col = 0;
                     for value in record.iter() {
+                        if cols_qty != -1 && count_col >= cols_qty {
+                            break;
+                        }
+
                         cql_values.push(CqlValue::Text(value.to_owned()));
+
+                        count_col += 1;
                     }
 
                     // create table

@@ -45,8 +45,11 @@ fn main() -> Result<(), SmartnessError> {
     }
 
     // Metrics runtime
-    let metrics_runtime =
-        metrics_runtime::create_runtime(&smartness_settings, process_runtime.session.clone())?;
+    let metrics_runtime = metrics_runtime::create_runtime(
+        &smartness_settings,
+        process_runtime.write_session.clone(),
+        process_runtime.read_session.clone(),
+    )?;
 
     process_runtime.start_runtime()?;
     process_runtime.shutdown();

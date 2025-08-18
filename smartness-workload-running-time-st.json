@@ -1,0 +1,21 @@
+{
+  "workers": 3,
+  "dataset_path": "dataset/X_cluster.csv",
+  "metrics_dir": "metrics/",
+  "running_time": 10,
+  "tasks_per_sec": 2,
+  "reads_rate": 0.5,
+  "cols_qty": 10,
+  "cassandra_host": "127.0.0.1",
+  "cassandra_port": 9043,
+  "cassandra_username": "cassandra",
+  "cassandra_password": "cassandra",
+  "write_script": "INSERT INTO smartness_keyspace.smalltable (\"id\", \"TimeStamp\", \"0_all_..usr\", \"0_all_..nice\", \"0_all_..sys\", \"0_all_..iowait\", \"0_all_..steal\", \"0_all_..irq\", \"0_all_..soft\", \"0_all_..guest\", \"0_all_..gnice\") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+  "read_script": "SELECT * FROM smartness_keyspace.smalltable;",
+  "startup_enabled": false,
+  "startup_create_schema_script": "CREATE KEYSPACE IF NOT EXISTS smartness_keyspace WITH REPLICATION = { 'class' : 'SimpleStrategy',  'replication_factor' : 3};",
+  "startup_drop_table_script": "DROP TABLE IF EXISTS smartness_keyspace.smalltable;",
+  "startup_create_table_script": "CREATE TABLE smartness_keyspace.smalltable (id UUID PRIMARY KEY, \"TimeStamp\" text, \"0_all_..usr\" text, \"0_all_..nice\" text, \"0_all_..sys\" text, \"0_all_..iowait\" text, \"0_all_..steal\" text, \"0_all_..irq\" text, \"0_all_..soft\" text, \"0_all_..guest\" text, \"0_all_..gnice\" text);",
+  "warmup_enabled": false,
+  "warmup_qty_ops": 10
+}

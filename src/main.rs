@@ -1,6 +1,6 @@
 use std::{fs::File, path::Path, time::Duration};
 
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use error::SmartnessError;
 
 use crate::config::{
@@ -16,6 +16,9 @@ mod error;
 struct Args {
     #[arg(short = 'w', long)]
     workload: String,
+
+    #[arg(long, action=ArgAction::SetTrue, default_value_t=false)]
+    no_metrics: bool,
 }
 
 fn main() -> Result<(), SmartnessError> {
@@ -45,18 +48,23 @@ fn main() -> Result<(), SmartnessError> {
     }
 
     // Metrics runtime
-    let metrics_runtime = metrics_runtime::create_runtime(
-        &smartness_settings,
-        process_runtime.write_session.clone(),
-        process_runtime.read_session.clone(),
-    )?;
+    let mut metrics_runtime = None;
+    if !args.no_metrics {
+        metrics_runtime = Some(metrics_runtime::create_runtime(
+            &smartness_settings,
+            process_runtime.write_session.clone(),
+            process_runtime.read_session.clone(),
+        )?);
+    }
 
     process_runtime.start_runtime()?;
     process_runtime.shutdown();
     println!("Process Runtime stopped.");
 
-    metrics_runtime.shutdown_timeout(Duration::from_secs(2));
-    println!("Metrics Runtime stopped.");
+    if let Some(metrics_runtime) = metrics_runtime {
+        metrics_runtime.shutdown_timeout(Duration::from_secs(2));
+        println!("Metrics Runtime stopped.");
+    }
 
     Ok(())
 }

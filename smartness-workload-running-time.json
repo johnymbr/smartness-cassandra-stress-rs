@@ -6,7 +6,7 @@
   "tasks_per_sec": 4,
   "reads_rate": 0.3,
   "cols_qty": -1,
-  "cassandra_host": "127.0.0.1",
+  "cassandra_host": "192.168.1.13",
   "cassandra_port": 9043,
   "cassandra_username": "cassandra",
   "cassandra_password": "cassandra",

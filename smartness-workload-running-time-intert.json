@@ -5,7 +5,7 @@
   "running_time": 120,
   "tasks_per_sec": 10,
   "reads_rate": 0.2,
-  "cols_qty": 100,
+  "cols_qty": 500,
   "cassandra_host": "192.168.1.13",
   "cassandra_port": 9043,
   "cassandra_username": "cassandra",

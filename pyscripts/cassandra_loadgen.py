@@ -24,6 +24,10 @@ __updated__ = '2025-08-14'
 DEBUG = 0
 
 #command = ['smartness-cassandra-stress-rs', '-w', 'smartness-workload-running-time.json']
+command_metric = ['/home/johny/environment/repositories/smartness-cassandra-stress-rs/target/debug/smartness-cassandra-stress-rs',
+           '-w',
+           '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-mt.json']
+
 command = ['/home/johny/environment/repositories/smartness-cassandra-stress-rs/target/debug/smartness-cassandra-stress-rs',
            '-w',
            '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-mt.json',
@@ -194,6 +198,11 @@ def main():
         # setup logger
         logging.basicConfig(filename=args.logfile, filemode='w', format='%(message)s', level=logging.INFO)
 
+    # start constant client
+    constant_output_file_name = str(datetime.datetime.now().timestamp()) + "_constant_output_stdout.txt"
+    CONSTANT_FILE = open(constant_output_file_name, 'w')
+    constant_pid = subprocess.Popen(command_metric, stdout=CONSTANT_FILE, stderr=subprocess.STDOUT)
+
     # main loop
     run(args)
 
@@ -201,6 +210,9 @@ def main():
     for pids in alive:
         terminate_process(pids, reports[i])
         i = i + 1
+
+    # terminate constant client
+    terminate_process(constant_pid, CONSTANT_FILE)
 
 
 # hook for the main function

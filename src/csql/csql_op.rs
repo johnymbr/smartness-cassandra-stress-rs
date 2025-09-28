@@ -9,7 +9,10 @@ use scylla::{
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessError};
+use crate::{
+    config::smarteness_settings::SmartnessSettings, error::SmartnessError,
+    metrics::metrics_manager::MetricsManager,
+};
 
 // function that will create a ScyllaDB sessions for writers and readers...
 // this session will be used in other functions...
@@ -201,25 +204,36 @@ pub async fn warmup_op(
 // function that will send a write operation using write_script from settings
 pub async fn write_op<'a>(
     session: Arc<Session>,
+    metrics_manager: Arc<MetricsManager>,
     insert: &'a str,
     values: Vec<CqlValue>,
 ) -> Result<(), SmartnessError> {
+    let request_start = std::time::Instant::now();
     // execute write operation
     session
         .query_unpaged(insert, values)
         .await
         .map(|_| ())
         .map_err(SmartnessError::CsqlWriteOpError)?;
+    let elapsed = request_start.elapsed();
+    metrics_manager.add_latency(elapsed.as_millis() as f64);
     Ok(())
 }
 
 // function that will send a read operation using read_script from settings
-pub async fn read_op(session: Arc<Session>, read: &str) -> Result<(), SmartnessError> {
+pub async fn read_op(
+    session: Arc<Session>,
+    metrics_manager: Arc<MetricsManager>,
+    read: &str,
+) -> Result<(), SmartnessError> {
+    let request_start = std::time::Instant::now();
     // execute read operation
     session
         .query_single_page(read, (), PagingState::start())
         .await
         .map(|_| ())
         .map_err(SmartnessError::CsqlReadOpError)?;
+    let elapsed = request_start.elapsed();
+    metrics_manager.add_latency(elapsed.as_millis() as f64);
     Ok(())
 }

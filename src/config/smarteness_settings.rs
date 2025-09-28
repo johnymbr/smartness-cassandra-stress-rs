@@ -10,8 +10,16 @@ pub struct SmartnessSettings {
     pub workers: Option<usize>,
     /// path to load csv dataset
     pub dataset_path: String,
+    /// disable metrics
+    pub no_metrics: Option<bool>,
     /// dir to save metrics
     pub metrics_dir: String,
+    /// interval to drain metrics vector
+    pub metrics_drain_interval_minutes: Option<i32>,
+    /// window size in minutes for metrics with window
+    pub metrics_window_size_minutes: Option<i32>,
+    /// window size for metrics with window
+    pub metrics_window_size: Option<i32>,
     /// quantity of cycles to run tests
     pub cycles: Option<i64>,
     /// time in minutes to run tests
@@ -54,7 +62,7 @@ pub struct SmartnessSettings {
 
 // TODO change this name to smartnesssettings
 impl SmartnessSettings {
-    pub fn new(workload_path: String) -> Result<Self, SmartnessError> {
+    pub fn new(workload_path: String, no_metrics: bool) -> Result<Self, SmartnessError> {
         let workload_path = Path::new(&workload_path);
         if !workload_path.exists() {
             return Err(SmartnessError::WorkloadFileDoesNotExist);
@@ -70,6 +78,14 @@ impl SmartnessSettings {
 
         if smartness_config.cycles.is_none() && smartness_config.running_time.is_none() {
             return Err(SmartnessError::CyclesOrRunningTimeRequired);
+        }
+
+        if smartness_config.metrics_drain_interval_minutes.is_none() {
+            smartness_config.metrics_drain_interval_minutes = Some(10);
+        }
+
+        if smartness_config.metrics_window_size_minutes.is_none() {
+            smartness_config.metrics_window_size_minutes = Some(7);
         }
 
         if smartness_config.cassandra_host.is_none() {
@@ -110,6 +126,12 @@ impl SmartnessSettings {
         smartness_config.task_interval =
             Some((1_000_000_000.0 / smartness_config.tasks_per_sec.unwrap() as f32).floor() as i64);
 
+        smartness_config.metrics_window_size = Some(
+            smartness_config.metrics_window_size_minutes.unwrap()
+                * 60
+                * smartness_config.tasks_per_sec.unwrap(),
+        );
+
         if smartness_config.cols_qty.is_none() {
             smartness_config.cols_qty = Some(-1);
         }
@@ -137,6 +159,8 @@ impl SmartnessSettings {
         {
             return Err(SmartnessError::WarmupQtyOpsRequired);
         }
+
+        smartness_config.no_metrics = Some(no_metrics);
 
         // println!("Config: {:?}", smartness_config);
 

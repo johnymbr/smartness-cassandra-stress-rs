@@ -13,6 +13,7 @@ use crate::{
     config::smarteness_settings::SmartnessSettings,
     csql::csql_op::{self},
     error::SmartnessError,
+    metrics::metrics_manager::MetricsManager,
 };
 
 pub struct ProcessRuntime<'a> {
@@ -21,6 +22,8 @@ pub struct ProcessRuntime<'a> {
     pub smartness_settings: &'a SmartnessSettings,
     pub write_session: Arc<Session>,
     pub read_session: Arc<Session>,
+    pub write_metrics_manager: Arc<MetricsManager>,
+    pub read_metrics_manager: Arc<MetricsManager>,
 }
 
 impl<'a> ProcessRuntime<'a> {
@@ -42,12 +45,18 @@ impl<'a> ProcessRuntime<'a> {
         let (write_session, read_session) =
             runtime.block_on(csql_op::create_session(smartness_settings))?;
 
+        let write_mm = MetricsManager::new(smartness_settings);
+
+        let read_mm = MetricsManager::new(smartness_settings);
+
         Ok(Self {
             runtime: Arc::new(runtime),
             smartness_settings,
             dataset_file: Arc::new(dataset_file),
             write_session: Arc::new(write_session),
             read_session: Arc::new(read_session),
+            write_metrics_manager: Arc::new(write_mm),
+            read_metrics_manager: Arc::new(read_mm),
         })
     }
 
@@ -99,7 +108,9 @@ impl<'a> ProcessRuntime<'a> {
 
         let runtime = Arc::clone(&self.runtime);
         let write_session = Arc::clone(&self.write_session);
+        let write_mm = Arc::clone(&self.write_metrics_manager);
         let read_session = Arc::clone(&self.read_session);
+        let read_mm = Arc::clone(&self.read_metrics_manager);
 
         // running time has precendency over cycle...
         if let Some(running_time) = &self.smartness_settings.running_time {
@@ -123,7 +134,9 @@ impl<'a> ProcessRuntime<'a> {
                     let write_op_aux = write_op.clone();
                     let read_op_aux = read_op.clone();
                     let write_session = write_session.clone();
+                    let write_mm = write_mm.clone();
                     let read_session = read_session.clone();
+                    let read_mm = read_mm.clone();
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
                             if count % 10 == 0 {
@@ -147,9 +160,13 @@ impl<'a> ProcessRuntime<'a> {
                                 }
 
                                 tokio::spawn(async move {
-                                    if let Err(err) =
-                                        csql_op::write_op(write_session, &write_op_aux, cql_values)
-                                            .await
+                                    if let Err(err) = csql_op::write_op(
+                                        write_session,
+                                        write_mm,
+                                        &write_op_aux,
+                                        cql_values,
+                                    )
+                                    .await
                                     {
                                         println!("Error: {:?}", err);
                                     }
@@ -157,7 +174,7 @@ impl<'a> ProcessRuntime<'a> {
                             } else {
                                 tokio::spawn(async move {
                                     if let Err(err) =
-                                        csql_op::read_op(read_session, &read_op_aux).await
+                                        csql_op::read_op(read_session, read_mm, &read_op_aux).await
                                     {
                                         println!("Error: {:?}", err);
                                     }
@@ -227,7 +244,9 @@ impl<'a> ProcessRuntime<'a> {
                     let write_op_aux = write_op.clone();
                     let read_op_aux = read_op.clone();
                     let write_session = write_session.clone();
+                    let write_mm = write_mm.clone();
                     let read_session = read_session.clone();
+                    let read_mm = read_mm.clone();
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
                             if reads_interval <= 0 || count % reads_interval != 0 {
@@ -247,9 +266,13 @@ impl<'a> ProcessRuntime<'a> {
                                 }
 
                                 tokio::spawn(async move {
-                                    if let Err(err) =
-                                        csql_op::write_op(write_session, &write_op_aux, cql_values)
-                                            .await
+                                    if let Err(err) = csql_op::write_op(
+                                        write_session,
+                                        write_mm,
+                                        &write_op_aux,
+                                        cql_values,
+                                    )
+                                    .await
                                     {
                                         println!("Error: {:?}", err);
                                     }
@@ -257,7 +280,7 @@ impl<'a> ProcessRuntime<'a> {
                             } else {
                                 tokio::spawn(async move {
                                     if let Err(err) =
-                                        csql_op::read_op(read_session, &read_op_aux).await
+                                        csql_op::read_op(read_session, read_mm, &read_op_aux).await
                                     {
                                         println!("Error: {:?}", err);
                                     }

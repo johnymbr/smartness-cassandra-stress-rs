@@ -12,12 +12,17 @@ use tokio::{
     time::{self},
 };
 
-use crate::{config::smarteness_settings::SmartnessSettings, error::SmartnessError};
+use crate::{
+    config::smarteness_settings::SmartnessSettings, error::SmartnessError,
+    metrics::metrics_manager::MetricsManager,
+};
 
 pub fn create_runtime(
     smartness_settings: &SmartnessSettings,
     write_session: Arc<Session>,
+    write_mm: Arc<MetricsManager>,
     read_session: Arc<Session>,
+    read_mm: Arc<MetricsManager>,
 ) -> Result<Runtime, SmartnessError> {
     let file_name = Utc::now().format("%Y%m%d_%H%M%S%3f").to_string();
 
@@ -49,8 +54,8 @@ pub fn create_runtime(
         let mut interval = time::interval(time::Duration::from_secs(1));
 
         loop {
-            write_metrics(&mut write_file, &write_session);
-            write_metrics(&mut read_file, &read_session);
+            write_metrics(&mut write_file, &write_session, write_mm.clone());
+            write_metrics(&mut read_file, &read_session, read_mm.clone());
 
             interval.tick().await;
         }
@@ -83,23 +88,48 @@ fn create_file(file_name: String) -> Result<Writer<File>, SmartnessError> {
         "total_connections",
         "connection_timeouts",
         "requests_timeouts",
-        "snapshot_min",
-        "snapshot_max",
-        "snapshot_mean",
-        "snapshot_std_dev",
-        "snapshot_median",
-        "snapshot_75th_percentile",
-        "snapshot_95th_percentile",
-        "snapshot_98th_percentile",
-        "snapshot_99th_percentile",
-        "snapshot_99_9th_percentile",
+        "count",
+        "min",
+        "max",
+        "mean",
+        "std_dev",
+        "median",
+        "75th_percentile",
+        "95th_percentile",
+        "98th_percentile",
+        "99th_percentile",
+        "99_9th_percentile",
+        "d_min",
+        "d_max",
+        "d_mean",
+        "d_std_dev",
+        "d_median",
+        "d_75th_percentile",
+        "d_95th_percentile",
+        "d_98th_percentile",
+        "d_99th_percentile",
+        "d_99_9th_percentile",
+        "w_min",
+        "w_max",
+        "w_mean",
+        "w_std_dev",
+        "w_median",
+        "w_75th_percentile",
+        "w_95th_percentile",
+        "w_98th_percentile",
+        "w_99th_percentile",
+        "w_99_9th_percentile",
     ])
     .map_err(SmartnessError::MetricsFileWriteHeadersError)?;
 
     Ok(wtr)
 }
 
-fn write_metrics(csv_file: &mut Writer<File>, session: &Session) {
+fn write_metrics(
+    csv_file: &mut Writer<File>,
+    session: &Session,
+    metrics_manager: Arc<MetricsManager>,
+) {
     let metrics = session.get_metrics();
 
     let mut metric_values = Vec::<String>::new();
@@ -123,29 +153,40 @@ fn write_metrics(csv_file: &mut Writer<File>, session: &Session) {
     metric_values.push(metrics.get_connection_timeouts().to_string());
     metric_values.push(metrics.get_request_timeouts().to_string());
 
-    if let Ok(snapshot) = metrics.get_snapshot() {
-        metric_values.push(snapshot.min.to_string());
-        metric_values.push(snapshot.max.to_string());
-        metric_values.push(snapshot.mean.to_string());
-        metric_values.push(snapshot.stddev.to_string());
-        metric_values.push(snapshot.median.to_string());
-        metric_values.push(snapshot.percentile_75.to_string());
-        metric_values.push(snapshot.percentile_95.to_string());
-        metric_values.push(snapshot.percentile_98.to_string());
-        metric_values.push(snapshot.percentile_99.to_string());
-        metric_values.push(snapshot.percentile_99_9.to_string());
-    } else {
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-        metric_values.push("-1".to_owned());
-    }
+    let snapshot = metrics_manager.generate_snapshot();
+    metric_values.push(snapshot.count.to_string());
+    metric_values.push(snapshot.min.to_string());
+    metric_values.push(snapshot.max.to_string());
+    metric_values.push(snapshot.mean.to_string());
+    metric_values.push(snapshot.std_dev.to_string());
+    metric_values.push(snapshot.median.to_string());
+    metric_values.push(snapshot.p_75th.to_string());
+    metric_values.push(snapshot.p_95th.to_string());
+    metric_values.push(snapshot.p_98th.to_string());
+    metric_values.push(snapshot.p_99th.to_string());
+    metric_values.push(snapshot.p_99_9th.to_string());
+
+    metric_values.push(snapshot.d_min.to_string());
+    metric_values.push(snapshot.d_max.to_string());
+    metric_values.push(snapshot.d_mean.to_string());
+    metric_values.push(snapshot.d_std_dev.to_string());
+    metric_values.push(snapshot.d_median.to_string());
+    metric_values.push(snapshot.d_p_75th.to_string());
+    metric_values.push(snapshot.d_p_95th.to_string());
+    metric_values.push(snapshot.d_p_98th.to_string());
+    metric_values.push(snapshot.d_p_99th.to_string());
+    metric_values.push(snapshot.d_p_99_9th.to_string());
+
+    metric_values.push(snapshot.w_min.to_string());
+    metric_values.push(snapshot.w_max.to_string());
+    metric_values.push(snapshot.w_mean.to_string());
+    metric_values.push(snapshot.w_std_dev.to_string());
+    metric_values.push(snapshot.w_median.to_string());
+    metric_values.push(snapshot.w_p_75th.to_string());
+    metric_values.push(snapshot.w_p_95th.to_string());
+    metric_values.push(snapshot.w_p_98th.to_string());
+    metric_values.push(snapshot.w_p_99th.to_string());
+    metric_values.push(snapshot.w_p_99_9th.to_string());
 
     if let Err(error) = csv_file.write_record(metric_values) {
         println!("Error when write a metrics record: {}", error);

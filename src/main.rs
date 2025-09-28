@@ -10,6 +10,7 @@ use crate::config::{
 mod config;
 mod csql;
 mod error;
+mod metrics;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -26,7 +27,7 @@ fn main() -> Result<(), SmartnessError> {
 
     println!("Workload Path {:?}", args.workload);
 
-    let smartness_settings = SmartnessSettings::new(args.workload)?;
+    let smartness_settings = SmartnessSettings::new(args.workload, args.no_metrics)?;
 
     println!("Settings loaded.");
 
@@ -53,7 +54,9 @@ fn main() -> Result<(), SmartnessError> {
         metrics_runtime = Some(metrics_runtime::create_runtime(
             &smartness_settings,
             process_runtime.write_session.clone(),
+            process_runtime.write_metrics_manager.clone(),
             process_runtime.read_session.clone(),
+            process_runtime.read_metrics_manager.clone(),
         )?);
     }
 

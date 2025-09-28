@@ -2,6 +2,8 @@
   "workers": 3,
   "dataset_path": "dataset/X_cluster.csv",
   "metrics_dir": "metrics/",
+  "metrics_drain_interval_minutes": 15,
+  "metrics_window_size_minutes": 7,
   "cycles": 10,
   "tasks_per_sec": 2,
   "reads_rate": 0.2,

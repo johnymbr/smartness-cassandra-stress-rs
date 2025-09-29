@@ -4,7 +4,7 @@
   "metrics_dir": "metrics/",
   "metrics_drain_interval_minutes": 15,
   "metrics_window_size_minutes": 7,
-  "running_time": 120,
+  "running_time": 60,
   "tasks_per_sec": 15,
   "reads_rate": 0.3,
   "cols_qty": 100,

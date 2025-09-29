@@ -127,9 +127,7 @@ impl SmartnessSettings {
             Some((1_000_000_000.0 / smartness_config.tasks_per_sec.unwrap() as f32).floor() as i64);
 
         smartness_config.metrics_window_size = Some(
-            smartness_config.metrics_window_size_minutes.unwrap()
-                * 60
-                * smartness_config.tasks_per_sec.unwrap(),
+            smartness_config.metrics_window_size_minutes.unwrap() * 60, // * smartness_config.tasks_per_sec.unwrap(),
         );
 
         if smartness_config.cols_qty.is_none() {

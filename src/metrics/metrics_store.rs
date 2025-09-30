@@ -83,7 +83,7 @@ impl MetricsStore {
         if count < self.windowed_size as u64 {
             self.windowed_vec.push(latency);
         } else {
-            self.windowed_vec.insert(position as usize, latency);
+            self.windowed_vec[position as usize] = latency;
         }
     }
 }

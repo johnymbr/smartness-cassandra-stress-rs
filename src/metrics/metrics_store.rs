@@ -72,14 +72,6 @@ impl MetricsStore {
 
     fn add_to_windowed_vec(&mut self, latency: f64, count: u64) {
         let position = count % self.windowed_size as u64;
-
-        if position == 0 {
-            println!(
-                "Count {} | Position {} | latency {}",
-                count, position, latency
-            );
-        }
-
         if count < self.windowed_size as u64 {
             self.windowed_vec.push(latency);
         } else {

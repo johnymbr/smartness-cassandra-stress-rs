@@ -139,7 +139,7 @@ impl<'a> ProcessRuntime<'a> {
                     let read_mm = read_mm.clone();
                     if let Some(record) = iter.next() {
                         if let Ok(record) = record {
-                            if count % 10 == 0 {
+                            if count % 1000 == 0 {
                                 println!("Quantity operations: {}", count);
                             }
 

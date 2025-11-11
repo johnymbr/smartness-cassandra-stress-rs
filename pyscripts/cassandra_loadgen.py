@@ -26,11 +26,11 @@ DEBUG = 0
 #command = ['smartness-cassandra-stress-rs', '-w', 'smartness-workload-running-time.json']
 command_metric = ['/home/johny/environment/repositories/smartness-cassandra-stress-rs/target/debug/smartness-cassandra-stress-rs',
            '-w',
-           '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-mt.json']
+           '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-t300.json']
 
 command = ['/home/johny/environment/repositories/smartness-cassandra-stress-rs/target/debug/smartness-cassandra-stress-rs',
            '-w',
-           '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-mt.json',
+           '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-t300.json',
            '--no-metrics']
 
 num_client = 1  # Setted to one fo the sinusoid starts with at least one (1) client
@@ -199,9 +199,9 @@ def main():
         logging.basicConfig(filename=args.logfile, filemode='w', format='%(message)s', level=logging.INFO)
 
     # start constant client
-    constant_output_file_name = str(datetime.datetime.now().timestamp()) + "_constant_output_stdout.txt"
-    CONSTANT_FILE = open(constant_output_file_name, 'w')
-    constant_pid = subprocess.Popen(command_metric, stdout=CONSTANT_FILE, stderr=subprocess.STDOUT)
+    # constant_output_file_name = str(datetime.datetime.now().timestamp()) + "_constant_output_stdout.txt"
+    # CONSTANT_FILE = open(constant_output_file_name, 'w')
+    # constant_pid = subprocess.Popen(command_metric, stdout=CONSTANT_FILE, stderr=subprocess.STDOUT)
 
     # main loop
     run(args)
@@ -212,7 +212,7 @@ def main():
         i = i + 1
 
     # terminate constant client
-    terminate_process(constant_pid, CONSTANT_FILE)
+    # terminate_process(constant_pid, CONSTANT_FILE)
 
 
 # hook for the main function

@@ -1,7 +1,7 @@
 {
   "workers": 4,
   "dataset_path": "/home/cloud/repositories/smartness-cassandra-stress-rs/dataset/X_cluster.csv",
-  "metrics_dir": "/home/cloud/repositories/smartness-cassandra-stress-rs/dataset/X_cluster.csv",
+  "metrics_dir": "/home/cloud/repositories/smartness-cassandra-stress-rs/metrics/clg",
   "metrics_drain_interval_minutes": 15,
   "metrics_window_size_minutes": 5,
   "running_time": 130,

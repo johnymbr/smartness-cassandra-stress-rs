@@ -24,13 +24,13 @@ __updated__ = '2025-08-14'
 DEBUG = 0
 
 #command = ['smartness-cassandra-stress-rs', '-w', 'smartness-workload-running-time.json']
-command_metric = ['/home/johny/environment/repositories/smartness-cassandra-stress-rs/target/debug/smartness-cassandra-stress-rs',
+command_metric = ['/home/cloud/repositories/smartness-cassandra-stress-rs/target/release/smartness-cassandra-stress-rs',
            '-w',
-           '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-t300.json']
+           '/home/cloud/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-t300.json']
 
-command = ['/home/johny/environment/repositories/smartness-cassandra-stress-rs/target/debug/smartness-cassandra-stress-rs',
+command = ['/home/cloud/repositories/smartness-cassandra-stress-rs/target/release/smartness-cassandra-stress-rs',
            '-w',
-           '/home/johny/environment/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-t300.json',
+           '/home/cloud/repositories/smartness-cassandra-stress-rs/smartness-workload-running-time-t300.json',
            '--no-metrics']
 
 num_client = 1  # Setted to one fo the sinusoid starts with at least one (1) client
